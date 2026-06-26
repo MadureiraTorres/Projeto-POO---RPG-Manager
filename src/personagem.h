@@ -30,11 +30,13 @@ class Personagem : public Entidade {
         int staminaMax;
         int exp;
         int expProxNivel;
+
+        // CORRIGIDO: protegido para subclasses (Clerigo) acessarem
         int estusCargasMax;
         int estusCargas;
         int estusRecuperacao;
 
-        // raça (agregação — não deletamos, factory gerencia)
+        // raça — Personagem é dono (composição via ponteiro)
         Raca* raca;
 
         // inventário (composição — Personagem é dono)
@@ -60,6 +62,7 @@ class Personagem : public Entidade {
 
         virtual ~Personagem() {
             for(Habilidade* h : habilidades) delete h;
+            delete raca;  // CORRIGIDO: Personagem é dono da raça
         }
 
         // ── getters ────────────────────────────────────────────────────────────
@@ -73,10 +76,20 @@ class Personagem : public Entidade {
         int    getExp()          const { return exp; }
         int    getExpProxNivel() const { return expProxNivel; }
         int    getEstusCargas()  const { return estusCargas; }
+        int    getEstusCargasMax() const { return estusCargasMax; }
         Raca*  getRaca()         const { return raca; }
         Inventario& getInventario()    { return inventario; }
         const Inventario& getInventario() const { return inventario; }
         const vector<Habilidade*>& getHabilidades() const { return habilidades; }
+
+        // ── setters para carregamento de save ──────────────────────────────────
+        void setForca(int v)        { forca = v; }
+        void setDex(int v)          { dex = v; }
+        void setInteligencia(int v) { inteligencia = v; }
+        void setFe(int v)           { fe = v; }
+        void setExp(int v)          { exp = v; }
+        void setExpProxNivel(int v) { expProxNivel = v; }
+        void setEstusCargas(int v)  { estusCargas = max(0, min(estusCargasMax, v)); }
 
         // ── stamina ────────────────────────────────────────────────────────────
         bool gastarStamina(int custo) {
@@ -175,15 +188,15 @@ class Personagem : public Entidade {
             cout << "┌─────────────────────────────────────────┐\n"
                  << "│ " << nome << " [" << raca->getNome() << "]\n"
                  << "│ Nível: "     << nivel
-                 << "| Classe: "   << getClasse() << "\n"
+                 << " | Classe: "   << getClasse() << "\n"
                  << "│ HP:      "   << hpAtual << "/" << hpMax << "\n"
                  << "│ Stamina: "   << stamina << "/" << staminaMax << "\n"
                  << "│ Estus:   "   << estusCargas << "/" << estusCargasMax << "\n"
                  << "│ EXP:     "   << exp << "/" << expProxNivel << "\n"
                  << "│ Força:   "   << forca
-                 << "| Dex: "      << dex
-                 << "| Intel: "    << inteligencia
-                 << "| Fé: "       << fe << "\n"
+                 << " | Dex: "      << dex
+                 << " | Intel: "    << inteligencia
+                 << " | Fé: "       << fe << "\n"
                  << "│ Equipamento:\n";
             inventario.exibirEquipamento();
             cout << "└─────────────────────────────────────────┘" << endl;

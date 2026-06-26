@@ -32,6 +32,8 @@ class Habilidade {
         string getDescricao()   const { return descricao; }
         int    getCustoStamina()const { return custoStamina; }
         bool   podeUsar()       const { return cooldownAtual == 0; }
+        int    getCooldownAtual()const { return cooldownAtual; }
+        int    getCooldownMax() const { return cooldownMax; }
 
         void reduzirCooldown() { if(cooldownAtual > 0) cooldownAtual--; }
         void resetarCooldown() { cooldownAtual = cooldownMax; }
@@ -42,6 +44,8 @@ class Habilidade {
         friend ostream &operator<<(ostream &os, const Habilidade &h) {
             os << "[" << h.getTipo() << "] " << h.nome << " — " << h.descricao
                << " (stamina: " << h.custoStamina << ", CD: " << h.cooldownMax << ")";
+            if(h.cooldownAtual > 0)
+                os << " [Em cooldown: " << h.cooldownAtual << " turno(s)]";
             return os;
         }
 };
@@ -67,7 +71,7 @@ class AtaquePesado : public Habilidade {
         }
 };
 
-/** @brief Piromancia — dano de fogo baseado em inteligência (simulado via nível). */
+/** @brief Piromancia — dano de fogo baseado em nível. */
 class Piromancia : public Habilidade {
     public:
         Piromancia() : Habilidade(
@@ -86,7 +90,7 @@ class Piromancia : public Habilidade {
         }
 };
 
-/** @brief Punhalada pelas costas — dano crítico se atacar primeiro no turno. */
+/** @brief Punhalada pelas costas — dano crítico. */
 class PunhaladaCostas : public Habilidade {
     public:
         PunhaladaCostas() : Habilidade(
@@ -107,7 +111,7 @@ class PunhaladaCostas : public Habilidade {
 
 // ── Defensivas ────────────────────────────────────────────────────────────────
 
-/** @brief Iron Flesh — aumenta defesa temporariamente, reduz mobilidade. */
+/** @brief Iron Flesh — absorve dano, reduz mobilidade. */
 class IronFlesh : public Habilidade {
     public:
         IronFlesh() : Habilidade(
@@ -122,7 +126,7 @@ class IronFlesh : public Habilidade {
             int cura = usuario.getNivel() * 10 + 50;
             cout << usuario.getNome() << " ativa IRON FLESH — absorve "
                  << cura << " de dano como escudo!" << endl;
-            usuario.curar(cura);   // simula absorção de dano
+            usuario.curar(cura);
             resetarCooldown();
         }
 };
@@ -149,7 +153,10 @@ class MiraculoCura : public Habilidade {
         }
 };
 
-/** @brief Alma Torrencial — drena vida do inimigo para o usuário. */
+/**
+ * @brief Alma Torrencial — drena vida do inimigo para o usuário.
+ * CORRIGIDO: resetarCooldown() agora é chamado corretamente.
+ */
 class AlmaTorrencial : public Habilidade {
     public:
         AlmaTorrencial() : Habilidade(
@@ -165,6 +172,7 @@ class AlmaTorrencial : public Habilidade {
                  << alvo.getNome() << " — drena " << drain << " HP!" << endl;
             alvo.receberDano(drain);
             usuario.curar(drain / 2);
+            resetarCooldown();  // CORRIGIDO: estava faltando
         }
 };
 

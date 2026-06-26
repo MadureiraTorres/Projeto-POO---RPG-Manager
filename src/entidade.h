@@ -43,6 +43,9 @@ class Entidade {
             if(lv <= 0) throw invalid_argument("Nível deve ser positivo");
             nivel = lv;
         }
+        /// @brief Restaura HP diretamente (usado ao carregar save).
+        void setHPAtual(int hp) { hpAtual = max(0, min(hpMax, hp)); }
+        void setHPMax(int hp)   { hpMax = max(1, hp); }
 
         bool estaVivo() const { return hpAtual > 0; }
 
