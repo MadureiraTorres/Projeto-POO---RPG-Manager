@@ -144,11 +144,9 @@ class Personagem : public Entidade {
         void ganharExp(int qt) {
             if(qt <= 0) return;
             exp += qt;
-            cout << getNome() << " ganhou " << qt << " almas de experiência!" << endl;
-            while(exp >= expProxNivel) {
-                exp -= expProxNivel;
-                levelUp();
-            }
+            cout << getNome() << " ganhou " << qt << " almas de experiência! "
+                 << "(" << exp << "/" << expProxNivel
+                 << " — descanse na fogueira para subir de nível)" << endl;
         }
 
         virtual void levelUp() {

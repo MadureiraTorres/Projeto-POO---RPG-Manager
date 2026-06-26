@@ -78,21 +78,12 @@ class Fogueira {
                 return;
             }
 
-            // Debita exp (simula gastar almas)
+            // Debita exp e dispara o level up real (polimórfico, respeita bônus da subclasse)
             int custoAtual = jogador.getExpProxNivel();
             jogador.setExp(jogador.getExp() - custoAtual);
+            jogador.levelUp();  // aplica bônus base da classe (+força, +dex, +HP, stamina, etc.)
 
-            // Aplica bônus escolhido E bônus base de level up
-            jogador.setNivel(jogador.getNivel() + 1);
-            int novoNivel = jogador.getNivel();
-            jogador.setExpProxNivel(novoNivel * 500);
-
-            // bônus base: todos ganham +2 força e +2 dex no levelUp normal,
-            // aqui aplicamos manualmente para dar o +3 no escolhido também
-            jogador.setForca(jogador.getForca() + 2);
-            jogador.setDex(jogador.getDex() + 2);
-            jogador.aumentarHPMax(50);
-
+            // Aplica APENAS o bônus extra escolhido pelo jogador (+3 no atributo desejado)
             switch(escolha) {
                 case 1:
                     jogador.setForca(jogador.getForca() + 3);
@@ -115,9 +106,6 @@ class Fogueira {
                     cout << "\n  ✦ Vitalidade aumentada! HP Máx: " << jogador.getHPMax() << "\n";
                     break;
             }
-
-            cout << "\n══ LEVEL UP! " << jogador.getNome()
-                 << " chegou ao nível " << jogador.getNivel() << " ══\n";
 
             // Perguntar se quer continuar investindo
             if(jogador.getExp() >= jogador.getExpProxNivel()) {
