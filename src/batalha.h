@@ -1,40 +1,102 @@
 /**
  * @file batalha.h
- * @brief Sistema de batalha por turnos com log de ações.
+ * @brief Sistema de batalha por turnos com log de ações e drop de itens.
  *
- * Classes:
- * - Batalha: combate Personagem vs Inimigo (PvE)
- * - BatalhaPvP: combate Personagem vs Personagem (PvP) — RF-5
+ * Melhorias:
+ * - Log usa std::list<LogBatalha> (critério STL)
+ * - Sistema de drop de itens inspirado em Dark Souls após vitória
+ * - BatalhaPvP mantido
  */
 #ifndef BATALHA_H
 #define BATALHA_H
 
 #include "personagem.h"
 #include "inimigo.h"
+#include "factories.h"
 #include <vector>
+#include <list>
 #include <string>
 #include <limits>
+#include <cstdlib>
+#include <ctime>
 using namespace std;
 
 namespace RPG {
 
-/** @brief Registro de uma ação num turno de batalha. */
+/// @brief Registro de uma ação num turno de batalha.
 struct LogBatalha {
     int    turno;
     string ator;
     string descricao;
 };
 
+// ── Tabela de drops ──────────────────────────────────────────────────────────
+
+/**
+ * @brief Entrada na tabela de drop de um inimigo.
+ * @note Taxa em porcentagem (0–100).
+ */
+struct DropEntry {
+    string tipoItem;   ///< "arma", "armadura", "pocao", "especial"
+    string subtipo;    ///< chave para a factory (ex.: "espadaLonga", "estus")
+    string slotExtra;  ///< slot de armadura (vazio se não for armadura)
+    int    taxa;       ///< chance de drop em %
+};
+
+/**
+ * @brief Tabela de drops por tipo de inimigo.
+ * Retorna lista de possíveis drops com suas taxas.
+ */
+static vector<DropEntry> tabelaDrops(const string &tipoInimigo) {
+    if(tipoInimigo == "Soldado Oco")
+        return {
+            {"pocao",    "estus",       "", 40},
+            {"arma",     "espadaLonga", "", 15},
+        };
+    if(tipoInimigo == "Cavaleiro Negro")
+        return {
+            {"arma",     "espadaLonga", "",         25},
+            {"armadura", "elite",       "capacete",  20},
+            {"armadura", "elite",       "luvas",     20},
+            {"pocao",    "estus",       "",          30},
+        };
+    if(tipoInimigo == "Catavento (Boss)")
+        return {
+            {"pocao",    "estusReforcado", "",          60},
+            {"especial", "anelVida",       "",          35},
+            {"arma",     "alabarda",       "",          20},
+        };
+    if(tipoInimigo == "Gárgula da Torre Bell (Boss)")
+        return {
+            {"armadura", "elite", "peitoral", 50},
+            {"armadura", "elite", "calças",   50},
+            {"pocao",    "estusReforcado", "", 70},
+            {"arma",     "alabarda",        "", 30},
+        };
+    if(tipoInimigo == "Ornstein, o Caçador de Dragões (Boss)")
+        return {
+            {"arma",     "alabarda",       "", 60},
+            {"armadura", "elite",          "capacete", 80},
+            {"armadura", "elite",          "peitoral", 80},
+            {"armadura", "elite",          "calças",   80},
+            {"armadura", "elite",          "luvas",    80},
+            {"especial", "anelForca",      "", 50},
+            {"pocao",    "estusReforcado", "", 100},
+        };
+    return {};
+}
+
 // ── Batalha PvE ───────────────────────────────────────────────────────────────
 
 /**
  * @brief Gerencia o loop de combate por turnos entre Personagem e Inimigo.
+ * @note Log usa std::list para demonstrar uso da estrutura STL pedida.
  */
 class Batalha {
     private:
         Personagem&        jogador;
         Inimigo&           inimigo;
-        vector<LogBatalha> log;
+        list<LogBatalha>   log;   ///< std::list para histórico de ações
         int                turnoAtual;
 
         void registrar(const string &ator, const string &msg) {
@@ -111,6 +173,46 @@ class Batalha {
             }
         }
 
+        /**
+         * @brief Processa drops de itens após vitória, inspirado em Dark Souls.
+         * Rola chance para cada entrada da tabela de drops do inimigo.
+         */
+        void processarDrops() {
+            vector<DropEntry> drops = tabelaDrops(inimigo.getNome());
+            if(drops.empty()) return;
+
+            cout << "\n  ── Itens encontrados ──\n";
+            bool algumDrop = false;
+
+            for(const DropEntry &d : drops) {
+                int roll = rand() % 100;
+                if(roll < d.taxa) {
+                    algumDrop = true;
+                    Item* novoItem = nullptr;
+                    try {
+                        if(d.tipoItem == "pocao")
+                            novoItem = ItemFactory::criarPocao(d.subtipo);
+                        else if(d.tipoItem == "arma")
+                            novoItem = ItemFactory::criarArma(d.subtipo);
+                        else if(d.tipoItem == "armadura")
+                            novoItem = ItemFactory::criarArmadura(d.subtipo, d.slotExtra);
+                        else if(d.tipoItem == "especial")
+                            novoItem = ItemFactory::criarItemEspecial(d.subtipo);
+                    } catch(...) { continue; }
+
+                    if(novoItem) {
+                        cout << "  ★ Drop: ";
+                        novoItem->descrever();
+                        if(!jogador.getInventario().adicionarItem(novoItem)) {
+                            cout << "  (inventário cheio — item perdido)\n";
+                            delete novoItem;
+                        }
+                    }
+                }
+            }
+            if(!algumDrop) cout << "  (nenhum item dropado)\n";
+        }
+
     public:
         Batalha(Personagem &j, Inimigo &i)
             : jogador(j), inimigo(i), turnoAtual(0) {}
@@ -128,13 +230,11 @@ class Batalha {
 
             while(jogador.estaVivo() && inimigo.estaVivo()) {
                 turnoAtual++;
-
                 menuAcaoJogador();
                 jogador.recuperarStamina(25);
                 jogador.reduzirCooldowns();
 
                 if(!inimigo.estaVivo()) break;
-
                 imprimirSeparador();
                 inimigo.atacar(jogador);
                 registrar(inimigo.getNome(), "atacou " + jogador.getNome());
@@ -146,6 +246,7 @@ class Batalha {
             return resolverFim();
         }
 
+        /// @brief Resolve desfecho da batalha, concede exp e processa drops.
         bool resolverFim() {
             cout << "\n╔══════════════════════════════════════════╗\n";
             if(jogador.estaVivo()) {
@@ -153,6 +254,7 @@ class Batalha {
                 cout << "╚══════════════════════════════════════════╝\n";
                 jogador.ganharExp(inimigo.getExpRecompensa());
                 cout << "  Almas obtidas: " << inimigo.getAlmasRecompensa() << "\n";
+                processarDrops();
                 jogador.recarregarEstus();
                 return true;
             } else {
@@ -173,15 +275,15 @@ class Batalha {
 // ── Batalha PvP ───────────────────────────────────────────────────────────────
 
 /**
- * @brief RF-5: Combate por turnos entre dois Personagens controlados por humanos.
- * Cada jogador escolhe sua ação a cada turno.
+ * @brief RF-5: Combate por turnos entre dois Personagens.
+ * @note Log também usa std::list.
  */
 class BatalhaPvP {
     private:
-        Personagem&        p1;
-        Personagem&        p2;
-        vector<LogBatalha> log;
-        int                turnoAtual;
+        Personagem&      p1;
+        Personagem&      p2;
+        list<LogBatalha> log;
+        int              turnoAtual;
 
         void registrar(const string &ator, const string &msg) {
             log.push_back({turnoAtual, ator, msg});
@@ -202,11 +304,6 @@ class BatalhaPvP {
             return v;
         }
 
-        /**
-         * @brief Processa ação de um personagem contra o outro.
-         * @param atacante Quem age neste turno.
-         * @param alvo     Quem recebe a ação.
-         */
         void menuAcao(Personagem &atacante, Personagem &alvo) {
             cout << "\n[TURNO " << turnoAtual << "] "
                  << atacante.getNome() << " (" << atacante.getHPAtual() << " HP) — escolha:\n"
@@ -250,7 +347,7 @@ class BatalhaPvP {
 
         /**
          * @brief Executa batalha PvP por turnos.
-         * @return true se p1 (personagem ativo) venceu.
+         * @return true se p1 venceu.
          */
         bool executar() {
             cout << "\n╔══════════════════════════════════════════╗\n"
@@ -261,33 +358,24 @@ class BatalhaPvP {
 
             while(p1.estaVivo() && p2.estaVivo()) {
                 turnoAtual++;
-
-                // turno de p1
                 menuAcao(p1, p2);
                 if(!p2.estaVivo()) break;
-
                 imprimirSeparador();
-
-                // turno de p2
                 menuAcao(p2, p1);
-
                 cout << "\n» " << p1 << "\n» " << p2 << "\n";
                 imprimirSeparador();
             }
 
-            // resultado
             cout << "\n╔══════════════════════════════════════════╗\n";
             Personagem* vencedor = p1.estaVivo() ? &p1 : &p2;
             Personagem* perdedor = p1.estaVivo() ? &p2 : &p1;
             cout << "║  VENCEDOR: " << vencedor->getNome() << "!\n";
             cout << "╚══════════════════════════════════════════╝\n";
 
-            // exp mínima ao vencedor
             int expGanha = perdedor->getNivel() * 300;
             cout << "  " << vencedor->getNome() << " ganhou " << expGanha << " de experiência!\n";
             vencedor->ganharExp(expGanha);
             vencedor->recarregarEstus();
-            // restaura HP do perdedor para 1 (está "derrotado", não morto em PvP)
             if(!perdedor->estaVivo()) perdedor->curar(1);
 
             return p1.estaVivo();

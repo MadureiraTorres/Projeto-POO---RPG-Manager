@@ -1,0 +1,12 @@
+PROJECT_NAME           = "RPG Manager — Dark Souls"
+PROJECT_VERSION        = "2.0"
+OUTPUT_DIRECTORY       = docs
+INPUT                  = src tests
+FILE_PATTERNS          = *.h *.cpp
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HAVE_DOT               = NO
+WARN_NO_PARAMDOC       = YES

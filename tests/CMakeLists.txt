@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.14)
+project(rpg_tests)
+set(CMAKE_CXX_STANDARD 17)
+find_package(GTest REQUIRED)
+add_executable(rpg_tests test_rpg.cpp)
+target_include_directories(rpg_tests PRIVATE ${GTEST_INCLUDE_DIRS} ${CMAKE_SOURCE_DIR}/../src)
+target_link_libraries(rpg_tests GTest::GTest GTest::Main sqlite3 pthread)

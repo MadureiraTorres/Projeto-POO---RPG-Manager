@@ -1,3 +1,5 @@
 *.exe
 rpg_maker.exe
 rpg_save.db
+*.db
+rpg_maker.exe

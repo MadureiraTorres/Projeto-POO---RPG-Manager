@@ -2,12 +2,10 @@
  * @file menu.h
  * @brief CLI interativa do RPG Manager — Dark Souls edition.
  *
- * Correções e melhorias:
- * - Adicionado menuCarregarJogo() (RF-7 corrigido)
- * - Adicionado listarPersonagens() com status detalhado (RF-2)
- * - Adicionado batalha PvP humano vs humano (RF-5)
- * - Melhorado tratamento de input cin para evitar loops infinitos
- * - Adicionado menu de gerenciamento de saves (deletar)
+ * Melhorias:
+ * - Opção "Sentar na Fogueira" adicionada ao menu principal
+ * - Drop de itens integrado via batalha.h
+ * - Tratamento robusto de I/O mantido
  */
 #ifndef MENU_H
 #define MENU_H
@@ -15,19 +13,19 @@
 #include "batalha.h"
 #include "factories.h"
 #include "persistencia.h"
+#include "fogueira.h"
 #include <vector>
 #include <limits>
 using namespace std;
 
 namespace RPG {
 
+/// @brief Menu principal interativo do RPG Manager.
 class Menu {
     private:
         vector<Personagem*> personagens;
         Personagem*         personagemAtivo = nullptr;
         Persistencia        db;
-
-        // ── utilitários de I/O ───────────────────────────────────────────────
 
         void limpar() {
             #ifdef _WIN32
@@ -43,7 +41,6 @@ class Menu {
             cin.get();
         }
 
-        /// @brief Lê inteiro de cin com tratamento de erro robusto.
         int lerInt(const string &prompt = "> ") {
             int v;
             cout << prompt;
@@ -56,11 +53,9 @@ class Menu {
             return v;
         }
 
-        /// @brief Lê string (linha inteira) de cin.
         string lerString(const string &prompt = "> ") {
             cout << prompt;
             string s;
-            // limpa buffer pendente
             if(cin.peek() == '\n') cin.ignore();
             getline(cin, s);
             return s;
@@ -76,7 +71,7 @@ class Menu {
                      << "Nível " << personagemAtivo->getNivel() << "\n\n";
         }
 
-        // ── RF-1: criação de personagem ───────────────────────────────────────
+        // ── RF-1: criação ─────────────────────────────────────────────────────
 
         void criarPersonagem() {
             limpar(); cabecalho();
@@ -127,7 +122,7 @@ class Menu {
             pausar();
         }
 
-        // ── RF-2: listar personagens com status detalhado ─────────────────────
+        // ── RF-2: listar ──────────────────────────────────────────────────────
 
         void listarPersonagens() {
             limpar(); cabecalho();
@@ -143,8 +138,6 @@ class Menu {
             pausar();
         }
 
-        // ── selecionar personagem ativo ───────────────────────────────────────
-
         void selecionarPersonagem() {
             if(personagens.empty()) {
                 cout << "Nenhum personagem criado ainda.\n";
@@ -152,9 +145,8 @@ class Menu {
             }
             limpar(); cabecalho();
             cout << "=== SELECIONAR PERSONAGEM ATIVO ===\n";
-            for(int i = 0; i < (int)personagens.size(); i++) {
+            for(int i = 0; i < (int)personagens.size(); i++)
                 cout << "  " << (i+1) << ". " << *personagens[i] << "\n";
-            }
             int idx = lerInt("> ") - 1;
             if(idx >= 0 && idx < (int)personagens.size()) {
                 personagemAtivo = personagens[idx];
@@ -164,8 +156,6 @@ class Menu {
             }
             pausar();
         }
-
-        // ── RF-3/4: ver status e inventário ──────────────────────────────────
 
         void verStatus() {
             limpar(); cabecalho();
@@ -209,32 +199,30 @@ class Menu {
                         if(poc && poc->temCargas()) {
                             poc->usar();
                             personagemAtivo->curar(poc->getCura());
-                            cout << "+" << poc->getCura() << " HP!" << endl;
-                        } else cout << "Sem poções disponíveis.\n";
+                            cout << "+" << poc->getCura() << " HP recuperado!\n";
+                        } else {
+                            cout << "Nenhum consumível disponível.\n";
+                        }
                         pausar(); break;
                     }
                     case 0: voltar = true; break;
-                    default: cout << "Opção inválida.\n";
+                    default: cout << "Opção inválida.\n"; pausar();
                 }
             }
         }
 
-        // ── RF-5: batalha (PvE e PvP) ─────────────────────────────────────────
+        // ── Batalha ───────────────────────────────────────────────────────────
 
         void menuBatalha() {
             if(!personagemAtivo) { cout << "Nenhum personagem ativo.\n"; pausar(); return; }
             limpar(); cabecalho();
-            cout << "=== MODO DE BATALHA ===\n"
-                 << "  1. Batalha contra Inimigo (PvE)\n"
-                 << "  2. Batalha contra outro Personagem (PvP)\n"
+            cout << "=== BATALHA ===\n"
+                 << "  1. Batalhar contra inimigo (PvE)\n"
+                 << "  2. Batalhar contra personagem (PvP)\n"
                  << "  0. Voltar\n";
             int modo = lerInt("> ");
-
-            if(modo == 1) {
-                batalhaVsInimigo();
-            } else if(modo == 2) {
-                batalhaVsPersonagem();
-            }
+            if(modo == 1)      batalhaVsInimigo();
+            else if(modo == 2) batalhaVsPersonagem();
         }
 
         void batalhaVsInimigo() {
@@ -270,40 +258,46 @@ class Menu {
             pausar();
         }
 
-        /**
-         * @brief RF-5: Batalha humano vs humano.
-         * Dois personagens da lista se enfrentam em turnos alternados.
-         */
         void batalhaVsPersonagem() {
             if(personagens.size() < 2) {
-                cout << "É necessário pelo menos 2 personagens para batalha PvP.\n"
-                     << "Crie mais personagens primeiro.\n";
+                cout << "É necessário pelo menos 2 personagens para batalha PvP.\n";
                 pausar(); return;
             }
             limpar(); cabecalho();
             cout << "=== BATALHA PvP ===\n"
                  << "Personagem 1 (ativo): " << *personagemAtivo << "\n\n"
                  << "Escolha o oponente:\n";
-            for(int i = 0; i < (int)personagens.size(); i++) {
+            for(int i = 0; i < (int)personagens.size(); i++)
                 if(personagens[i] != personagemAtivo)
                     cout << "  " << (i+1) << ". " << *personagens[i] << "\n";
-            }
             int idx = lerInt("> ") - 1;
             if(idx < 0 || idx >= (int)personagens.size() || personagens[idx] == personagemAtivo) {
                 cout << "Oponente inválido.\n"; pausar(); return;
             }
 
-            Personagem* oponente = personagens[idx];
-            cout << "\n⚔  " << personagemAtivo->getNome()
-                 << " vs " << oponente->getNome() << " ⚔\n";
-
-            BatalhaPvP pvp(*personagemAtivo, *oponente);
+            BatalhaPvP pvp(*personagemAtivo, *personagens[idx]);
             pvp.executar();
             pvp.exibirLog();
             pausar();
         }
 
-        // ── habilidades ───────────────────────────────────────────────────────
+        // ── Fogueira ──────────────────────────────────────────────────────────
+
+        /**
+         * @brief RF-novo: Senta na Fogueira — recupera e permite level up manual.
+         * @see Fogueira
+         */
+        void sentarNaFogueira() {
+            if(!personagemAtivo) {
+                cout << "Nenhum personagem ativo.\n";
+                pausar(); return;
+            }
+            Fogueira fogueira(*personagemAtivo);
+            fogueira.sentar();
+            pausar();
+        }
+
+        // ── Habilidades ───────────────────────────────────────────────────────
 
         void verHabilidades() {
             limpar(); cabecalho();
@@ -311,13 +305,12 @@ class Menu {
             cout << "=== HABILIDADES DE " << personagemAtivo->getNome() << " ===\n";
             const auto& habs = personagemAtivo->getHabilidades();
             if(habs.empty()) { cout << "  (sem habilidades)\n"; pausar(); return; }
-            for(const Habilidade* h : habs) {
+            for(const Habilidade* h : habs)
                 cout << "  " << *h << "\n";
-            }
             pausar();
         }
 
-        // ── RF-7: salvar e carregar ───────────────────────────────────────────
+        // ── Saves ─────────────────────────────────────────────────────────────
 
         void salvarJogo() {
             if(!personagemAtivo) { cout << "Nenhum personagem ativo.\n"; pausar(); return; }
@@ -329,28 +322,20 @@ class Menu {
             pausar();
         }
 
-        /**
-         * @brief Carrega um personagem do banco e o adiciona à lista de personagens.
-         */
         void carregarJogo() {
             limpar(); cabecalho();
             cout << "=== CARREGAR JOGO ===\n";
             db.listarSaves();
 
             vector<string> nomes = db.listarNomesSaves();
-            if(nomes.empty()) {
-                cout << "\nNenhum save disponível.\n";
-                pausar(); return;
-            }
+            if(nomes.empty()) { cout << "\nNenhum save disponível.\n"; pausar(); return; }
 
-            cout << "\nDigite o nome do personagem a carregar (ou 0 para cancelar): ";
-            string nome = lerString();
+            string nome = lerString("\nDigite o nome (ou 0 para cancelar): ");
             if(nome == "0" || nome.empty()) { pausar(); return; }
 
-            // verifica se já está carregado
             for(Personagem* p : personagens) {
                 if(p->getNome() == nome) {
-                    cout << "✔ Personagem '" << nome << "' já está carregado. Ativando...\n";
+                    cout << "Personagem já carregado. Ativando...\n";
                     personagemAtivo = p;
                     pausar(); return;
                 }
@@ -371,47 +356,43 @@ class Menu {
             limpar(); cabecalho();
             cout << "=== GERENCIAR SAVES ===\n";
             db.listarSaves();
-
             cout << "\n  1. Carregar personagem\n"
                  << "  2. Deletar save\n"
                  << "  0. Voltar\n";
             int op = lerInt("> ");
-            if(op == 1) {
-                carregarJogo();
-                return; // carregarJogo já chama pausar()
-            } else if(op == 2) {
+            if(op == 1) { carregarJogo(); return; }
+            else if(op == 2) {
                 string nome = lerString("Nome do save a deletar: ");
-                try {
-                    db.deletarSave(nome);
-                } catch(const exception &e) {
-                    cout << "Erro: " << e.what() << endl;
-                }
+                try { db.deletarSave(nome); }
+                catch(const exception &e) { cout << "Erro: " << e.what() << endl; }
                 pausar();
             }
         }
 
     public:
-        Menu() : db("rpg_save.db") {}
+        Menu() : db("rpg_save.db") { srand((unsigned)time(nullptr)); }
 
         ~Menu() {
             for(Personagem* p : personagens) delete p;
         }
 
+        /// @brief Loop principal do programa.
         void executar() {
             bool rodando = true;
             while(rodando) {
                 limpar(); cabecalho();
-                cout << "  1. Criar personagem\n"
-                     << "  2. Listar todos os personagens\n"
-                     << "  3. Selecionar personagem ativo\n"
-                     << "  4. Ver status do personagem ativo\n"
-                     << "  5. Inventário\n"
-                     << "  6. Habilidades\n"
-                     << "  7. Batalhar\n"
-                     << "  8. Salvar jogo\n"
-                     << "  9. Carregar jogo\n"
-                     << " 10. Ver/Gerenciar saves\n"
-                     << "  0. Sair\n";
+                cout << "  1.  Criar personagem\n"
+                     << "  2.  Listar todos os personagens\n"
+                     << "  3.  Selecionar personagem ativo\n"
+                     << "  4.  Ver status do personagem ativo\n"
+                     << "  5.  Inventário\n"
+                     << "  6.  Habilidades\n"
+                     << "  7.  Batalhar\n"
+                     << "  8.  Sentar na Fogueira\n"
+                     << "  9.  Salvar jogo\n"
+                     << "  10. Carregar jogo\n"
+                     << "  11. Ver/Gerenciar saves\n"
+                     << "  0.  Sair\n";
                 int op = lerInt("> ");
                 switch(op) {
                     case 1:  criarPersonagem();      break;
@@ -421,9 +402,10 @@ class Menu {
                     case 5:  menuInventario();       break;
                     case 6:  verHabilidades();       break;
                     case 7:  menuBatalha();          break;
-                    case 8:  salvarJogo();           break;
-                    case 9:  carregarJogo();         break;
-                    case 10: verSaves();             break;
+                    case 8:  sentarNaFogueira();     break;
+                    case 9:  salvarJogo();           break;
+                    case 10: carregarJogo();         break;
+                    case 11: verSaves();             break;
                     case 0:  rodando = false;        break;
                     default: cout << "Opção inválida.\n"; pausar();
                 }
